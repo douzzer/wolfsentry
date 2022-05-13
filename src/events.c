@@ -615,3 +615,18 @@ wolfsentry_errcode_t wolfsentry_event_table_init(
     event_table->header.ent_type = WOLFSENTRY_OBJECT_TYPE_EVENT;
     WOLFSENTRY_RETURN_OK;
 }
+
+wolfsentry_errcode_t wolfsentry_event_table_clone_header(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_table_header *src_table,
+    struct wolfsentry_context *dest_context,
+    struct wolfsentry_table_header *dest_table,
+    wolfsentry_clone_flags_t flags)
+{
+    (void)wolfsentry;
+    (void)src_table;
+    (void)dest_context;
+    (void)dest_table;
+    (void)flags;
+    WOLFSENTRY_RETURN_OK;
+}

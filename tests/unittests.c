@@ -1014,8 +1014,9 @@ static wolfsentry_errcode_t wolfsentry_action_dummy_callback(
     void *caller_arg,
     const struct wolfsentry_event *event,
     wolfsentry_action_type_t action_type,
+    const struct wolfsentry_route *target_route,
     struct wolfsentry_route_table *route_table,
-    const struct wolfsentry_route *route,
+    const struct wolfsentry_route *rule_route,
     wolfsentry_action_res_t *action_results)
 {
     (void)wolfsentry;
@@ -1024,8 +1025,9 @@ static wolfsentry_errcode_t wolfsentry_action_dummy_callback(
     (void)caller_arg;
     (void)event;
     (void)action_type;
+    (void)target_route;
     (void)route_table;
-    (void)route;
+    (void)rule_route;
     (void)action_results;
 
     return 0;
@@ -1487,8 +1489,8 @@ static wolfsentry_errcode_t test_kv_validator(
 }
 
 static int test_user_values (void) {
-
     struct wolfsentry_context *wolfsentry;
+    wolfsentry_action_res_t action_results;
 
     wolfsentry_kv_type_t kv_type;
     struct wolfsentry_kv_pair_internal *kv_ref;
@@ -1499,7 +1501,9 @@ static int test_user_values (void) {
             NULL /* config */,
             &wolfsentry));
 
-    WOLFSENTRY_EXIT_ON_FAILURE(wolfsentry_user_value_set_validator(wolfsentry, test_kv_validator));
+    action_results = WOLFSENTRY_ACTION_RES_NONE;
+    WOLFSENTRY_EXIT_ON_FAILURE(wolfsentry_user_value_set_validator(wolfsentry, test_kv_validator, &action_results));
+    WOLFSENTRY_EXIT_ON_FALSE(action_results == WOLFSENTRY_ACTION_RES_NONE);
 
     WOLFSENTRY_EXIT_ON_FAILURE(
         wolfsentry_user_value_store_null(
@@ -2141,21 +2145,31 @@ static wolfsentry_errcode_t test_action(
     void *caller_arg,
     const struct wolfsentry_event *trigger_event,
     wolfsentry_action_type_t action_type,
+    const struct wolfsentry_route *target_route,
     struct wolfsentry_route_table *route_table,
-    const struct wolfsentry_route *route,
+    const struct wolfsentry_route *rule_route,
     wolfsentry_action_res_t *action_results)
 {
-    const struct wolfsentry_event *parent_event = wolfsentry_route_parent_event(route);
+    const struct wolfsentry_event *parent_event;
+
     (void)wolfsentry;
     (void)handler_arg;
     (void)route_table;
     (void)action_results;
-    printf("action callback: a=\"%s\" parent_event=\"%s\" trigger=\"%s\" t=%u r_id=%u caller_arg=%p\n",
+
+    if (rule_route == NULL) {
+        printf("null rule_route, target_route=%p\n",target_route);
+        return 0;
+    }
+
+    parent_event = wolfsentry_route_parent_event(rule_route);
+    printf("action callback: target_route=%p  a=\"%s\" parent_event=\"%s\" trigger=\"%s\" t=%u r_id=%u caller_arg=%p\n",
+           target_route,
            wolfsentry_action_get_label(action),
            wolfsentry_event_get_label(parent_event),
            wolfsentry_event_get_label(trigger_event),
            action_type,
-           wolfsentry_get_object_id(route),
+           wolfsentry_get_object_id(rule_route),
            caller_arg);
     return 0;
 }
@@ -2249,6 +2263,32 @@ static int test_json(const char *fname) {
             my_addr_family_parser,
             my_addr_family_formatter,
             24 /* max_addr_bits */));
+
+    WOLFSENTRY_EXIT_ON_FAILURE(json_feed_file(wolfsentry, fname, WOLFSENTRY_CONFIG_LOAD_FLAG_NO_ROUTES_OR_EVENTS));
+
+    {
+        static const char test_string[] = "hello";
+        const char *value = NULL;
+        int value_len = -1;
+        struct wolfsentry_kv_pair_internal *kv_ref;
+
+        WOLFSENTRY_EXIT_ON_FAILURE(
+            wolfsentry_user_value_get_string(
+                wolfsentry,
+                "user-string",
+                WOLFSENTRY_LENGTH_NULL_TERMINATED,
+                &value,
+                &value_len,
+                &kv_ref));
+
+        WOLFSENTRY_EXIT_ON_FALSE(value_len == (int)strlen(test_string));
+        WOLFSENTRY_EXIT_ON_FALSE(strcmp(value, test_string) == 0);
+
+        WOLFSENTRY_EXIT_ON_FAILURE(
+            wolfsentry_user_value_release_record(
+                wolfsentry,
+                &kv_ref));
+    }
 
     WOLFSENTRY_EXIT_ON_FAILURE(wolfsentry_action_insert(
                                    wolfsentry,
@@ -2390,8 +2430,7 @@ static int test_json(const char *fname) {
         memcpy(remote.sa.addr,"\177\0\0\1",sizeof remote.addr_buf);
         memcpy(local.sa.addr,"\177\0\0\1",sizeof local.addr_buf);
 
-        WOLFSENTRY_EXIT_ON_FAILURE(
-            wolfsentry_route_event_dispatch(
+        WOLFSENTRY_EXIT_ON_FAILURE(wolfsentry_route_event_dispatch(
                 wolfsentry,
                 &remote.sa,
                 &local.sa,

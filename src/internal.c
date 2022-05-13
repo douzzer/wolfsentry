@@ -69,15 +69,45 @@ wolfsentry_errcode_t wolfsentry_table_ent_insert(struct wolfsentry_context *wolf
     WOLFSENTRY_RETURN_OK;
 }
 
+static wolfsentry_errcode_t wolfsentry_table_clone_map(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_table_header *src_table,
+    struct wolfsentry_context *dest_context,
+    struct wolfsentry_table_header *dest_table,
+    wolfsentry_table_ent_clone_map_fn_t clone_map_fn,
+    wolfsentry_clone_flags_t flags)
+{
+    wolfsentry_errcode_t ret;
+    struct wolfsentry_table_ent_header *i, *i_new;
+
+    if ((wolfsentry == dest_context) || (src_table == dest_table))
+        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
+    if (src_table->ent_type != dest_table->ent_type)
+        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
+    if (src_table->n_ents != dest_table->n_ents)
+        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
+
+    for (i = src_table->head, i_new = dest_table->head;
+         i && i_new;
+         i = i->next, i_new = i_new->next) {
+        if ((ret = clone_map_fn(wolfsentry, i, dest_context, i_new, flags)) < 0)
+            return ret;
+    }
+    if (i || i_new)
+        WOLFSENTRY_ERROR_RETURN(INTERNAL_CHECK_FATAL);
+
+    WOLFSENTRY_RETURN_OK;
+}
+
 wolfsentry_errcode_t wolfsentry_table_clone(
     struct wolfsentry_context *wolfsentry,
     struct wolfsentry_table_header *src_table,
     struct wolfsentry_context *dest_context,
     struct wolfsentry_table_header *dest_table,
-    wolfsentry_table_ent_clone_fn_t clone_fn,
     wolfsentry_clone_flags_t flags)
 {
     wolfsentry_errcode_t ret;
+    wolfsentry_table_ent_clone_fn_t clone_fn = NULL;
     struct wolfsentry_table_ent_header *prev = NULL, *new = NULL, *i;
 
     if ((wolfsentry == dest_context) || (src_table == dest_table))
@@ -86,6 +116,48 @@ wolfsentry_errcode_t wolfsentry_table_clone(
         WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
     if (dest_table->head != NULL)
         WOLFSENTRY_ERROR_RETURN(BUSY);
+
+    switch(src_table->ent_type) {
+    case WOLFSENTRY_OBJECT_TYPE_ACTION:
+        if ((ret = wolfsentry_action_table_clone_header(wolfsentry, src_table, dest_context, dest_table, flags)) < 0)
+            return ret;
+        clone_fn = wolfsentry_action_clone;
+        break;
+    case WOLFSENTRY_OBJECT_TYPE_EVENT:
+        if ((ret = wolfsentry_event_table_clone_header(wolfsentry, src_table, dest_context, dest_table, flags)) < 0)
+            return ret;
+        clone_fn = wolfsentry_event_clone_bare;
+        break;
+    case WOLFSENTRY_OBJECT_TYPE_ROUTE:
+        if ((ret = wolfsentry_route_table_clone_header(wolfsentry, src_table, dest_context, dest_table, flags)) < 0)
+            return ret;
+        clone_fn = wolfsentry_route_clone;
+        break;
+    case WOLFSENTRY_OBJECT_TYPE_KV:
+        if ((ret = wolfsentry_kv_table_clone_header(wolfsentry, src_table, dest_context, dest_table, flags)) < 0)
+            return ret;
+        clone_fn = wolfsentry_kv_clone;
+        break;
+
+#ifdef WOLFSENTRY_PROTOCOL_NAMES
+    case WOLFSENTRY_OBJECT_TYPE_ADDR_FAMILY_BYNUMBER:
+        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
+#else
+    case WOLFSENTRY_OBJECT_TYPE_ADDR_FAMILY_BYNUMBER:
+        if ((ret = wolfsentry_addr_family_bynumber_table_clone_header(wolfsentry, src_table, dest_context, dest_table, flags)) < 0)
+            return ret;
+        clone_fn = wolfsentry_addr_family_bynumber_clone;
+        break;
+#endif
+
+    case WOLFSENTRY_OBJECT_TYPE_ADDR_FAMILY_BYNAME:
+    case WOLFSENTRY_OBJECT_TYPE_UNINITED:
+    case WOLFSENTRY_OBJECT_TYPE_TABLE:
+        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
+    }
+
+    if (clone_fn == NULL)
+        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
 
     for (i = src_table->head;
          i;
@@ -105,6 +177,12 @@ wolfsentry_errcode_t wolfsentry_table_clone(
 
     dest_table->n_ents = src_table->n_ents;
 
+    /* event cloning is tricky because events refer to other events by pointer, so a second pass through the table is needed. */
+    if (src_table->ent_type == WOLFSENTRY_OBJECT_TYPE_EVENT) {
+        if ((ret = wolfsentry_table_clone_map(wolfsentry, &wolfsentry->events->header, dest_context, &dest_context->events->header, wolfsentry_event_clone_resolve, flags)) < 0)
+            goto out;
+    }
+
     ret = WOLFSENTRY_ERROR_ENCODE(OK);
 
   out:
@@ -112,6 +190,7 @@ wolfsentry_errcode_t wolfsentry_table_clone(
     return ret;
 }
 
+#ifdef WOLFSENTRY_PROTOCOL_NAMES
 wolfsentry_errcode_t wolfsentry_coupled_table_clone(
     struct wolfsentry_context *wolfsentry,
     struct wolfsentry_table_header *src_table1,
@@ -119,10 +198,10 @@ wolfsentry_errcode_t wolfsentry_coupled_table_clone(
     struct wolfsentry_context *dest_context,
     struct wolfsentry_table_header *dest_table1,
     struct wolfsentry_table_header *dest_table2,
-    wolfsentry_coupled_table_ent_clone_fn_t clone_fn,
     wolfsentry_clone_flags_t flags)
 {
     wolfsentry_errcode_t ret;
+    wolfsentry_coupled_table_ent_clone_fn_t clone_fn = NULL;
     struct wolfsentry_table_ent_header *prev = NULL, *new1 = NULL, *new2 = NULL, *i;
 
     if ((wolfsentry == dest_context) ||
@@ -140,6 +219,27 @@ wolfsentry_errcode_t wolfsentry_coupled_table_clone(
         WOLFSENTRY_ERROR_RETURN(BUSY);
     if (dest_table2->head != NULL)
         WOLFSENTRY_ERROR_RETURN(BUSY);
+
+    switch(src_table1->ent_type) {
+    case WOLFSENTRY_OBJECT_TYPE_ADDR_FAMILY_BYNUMBER:
+        if (src_table2->ent_type != WOLFSENTRY_OBJECT_TYPE_ADDR_FAMILY_BYNAME)
+            WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
+        if ((ret = wolfsentry_addr_family_table_clone_headers(wolfsentry, src_table1, src_table2, dest_context, dest_table1, dest_table2, flags)) < 0)
+            return ret;
+        clone_fn = wolfsentry_addr_family_clone;
+        break;
+    case WOLFSENTRY_OBJECT_TYPE_ADDR_FAMILY_BYNAME:
+    case WOLFSENTRY_OBJECT_TYPE_ACTION:
+    case WOLFSENTRY_OBJECT_TYPE_EVENT:
+    case WOLFSENTRY_OBJECT_TYPE_ROUTE:
+    case WOLFSENTRY_OBJECT_TYPE_KV:
+    case WOLFSENTRY_OBJECT_TYPE_UNINITED:
+    case WOLFSENTRY_OBJECT_TYPE_TABLE:
+        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
+    }
+
+    if (clone_fn == NULL)
+        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
 
     for (i = src_table1->head;
          i;
@@ -172,36 +272,7 @@ wolfsentry_errcode_t wolfsentry_coupled_table_clone(
 
     return ret;
 }
-
-wolfsentry_errcode_t wolfsentry_table_clone_map(
-    struct wolfsentry_context *wolfsentry,
-    struct wolfsentry_table_header *src_table,
-    struct wolfsentry_context *dest_context,
-    struct wolfsentry_table_header *dest_table,
-    wolfsentry_table_ent_clone_map_fn_t clone_map_fn,
-    wolfsentry_clone_flags_t flags)
-{
-    wolfsentry_errcode_t ret;
-    struct wolfsentry_table_ent_header *i, *i_new;
-
-    if ((wolfsentry == dest_context) || (src_table == dest_table))
-        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
-    if (src_table->ent_type != dest_table->ent_type)
-        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
-    if (src_table->n_ents != dest_table->n_ents)
-        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
-
-    for (i = src_table->head, i_new = dest_table->head;
-         i && i_new;
-         i = i->next, i_new = i_new->next) {
-        if ((ret = clone_map_fn(wolfsentry, i, dest_context, i_new, flags)) < 0)
-            return ret;
-    }
-    if (i || i_new)
-        WOLFSENTRY_ERROR_RETURN(INTERNAL_CHECK_FATAL);
-
-    WOLFSENTRY_RETURN_OK;
-}
+#endif /* WOLFSENTRY_PROTOCOL_NAMES */
 
 static inline int wolfsentry_ent_id_cmp(struct wolfsentry_table_ent_header *left, wolfsentry_ent_id_t right_id) {
     if (left->id < right_id)
@@ -296,6 +367,7 @@ wolfsentry_errcode_t wolfsentry_table_ent_delete_by_id(struct wolfsentry_context
 
     WOLFSENTRY_RETURN_OK;
 }
+#include <stdlib.h>
 
 wolfsentry_errcode_t wolfsentry_table_ent_get(struct wolfsentry_table_header *table, struct wolfsentry_table_ent_header **ent) {
     struct wolfsentry_table_ent_header *i = table->head;
@@ -385,6 +457,7 @@ wolfsentry_errcode_t wolfsentry_table_free_ents(struct wolfsentry_context *wolfs
         WOLFSENTRY_RETURN_OK;
     while (i) {
         next = i->next;
+        wolfsentry_table_ent_delete_by_id_1(wolfsentry, i);
         if ((ret = table->free_fn(wolfsentry, i, NULL /* action_results */)) < 0)
             return ret;
         i = next;
@@ -480,7 +553,8 @@ wolfsentry_errcode_t wolfsentry_table_map(
     struct wolfsentry_context *wolfsentry,
     struct wolfsentry_table_header *table,
     wolfsentry_map_function_t fn,
-    void *map_context)
+    void *map_context,
+    wolfsentry_action_res_t *action_results)
 {
     /* with linked lists, this is easy, but it will be a lot trickier with red-black trees. */
     wolfsentry_errcode_t ret = WOLFSENTRY_ERROR_ENCODE(OK);
@@ -491,7 +565,7 @@ wolfsentry_errcode_t wolfsentry_table_map(
     for (i = table->head; i; i = i_next) {
         i_next = i->next;
 
-        if ((ret = fn(map_context, i, NULL /* action_results */)) < 0)
+        if ((ret = fn(map_context, i, action_results)) < 0)
             break;
     }
 

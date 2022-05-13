@@ -267,6 +267,7 @@ struct wolfsentry_route {
 struct wolfsentry_route_table {
     struct wolfsentry_table_header header;
     struct wolfsentry_event *default_event; /* used as the event by wolfsentry_route_dispatch() for a static route match with a null parent_event. */
+    struct wolfsentry_route *fallthrough_route; /* used as the rule_route when no rule_route is matched or inserted. */
     wolfsentry_time_t purge_age; /* when now - last_transition_time >= purge_age, purge from the route table. */
     wolfsentry_action_res_t default_policy;
 };
@@ -356,17 +357,63 @@ wolfsentry_errcode_t wolfsentry_id_generate(struct wolfsentry_context *wolfsentr
 int wolfsentry_event_key_cmp(struct wolfsentry_event *left, struct wolfsentry_event *right);
 wolfsentry_errcode_t wolfsentry_event_table_init(
     struct wolfsentry_event_table *event_table);
+wolfsentry_errcode_t wolfsentry_event_table_clone_header(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_table_header *src_table,
+    struct wolfsentry_context *dest_context,
+    struct wolfsentry_table_header *dest_table,
+    wolfsentry_clone_flags_t flags);
 wolfsentry_errcode_t wolfsentry_action_table_init(
     struct wolfsentry_action_table *action_table);
+wolfsentry_errcode_t wolfsentry_action_table_clone_header(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_table_header *src_table,
+    struct wolfsentry_context *dest_context,
+    struct wolfsentry_table_header *dest_table,
+    wolfsentry_clone_flags_t flags);
 wolfsentry_errcode_t wolfsentry_route_table_init(
     struct wolfsentry_route_table *route_table);
+wolfsentry_errcode_t wolfsentry_route_table_fallthrough_route_alloc(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_route_table *route_table);
+wolfsentry_errcode_t wolfsentry_route_table_clone_header(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_table_header *src_table,
+    struct wolfsentry_context *dest_context,
+    struct wolfsentry_table_header *dest_table,
+    wolfsentry_clone_flags_t flags);
+void wolfsentry_route_table_free(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_route_table **route_table);
 wolfsentry_errcode_t wolfsentry_kv_table_init(
     struct wolfsentry_kv_table *kv_table);
+wolfsentry_errcode_t wolfsentry_kv_table_clone_header(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_table_header *src_table,
+    struct wolfsentry_context *dest_context,
+    struct wolfsentry_table_header *dest_table,
+    wolfsentry_clone_flags_t flags);
 wolfsentry_errcode_t wolfsentry_addr_family_bynumber_table_init(
     struct wolfsentry_addr_family_bynumber_table *addr_family_bynumber_table);
+#ifndef WOLFSENTRY_PROTOCOL_NAMES
+wolfsentry_errcode_t wolfsentry_addr_family_bynumber_table_clone_header(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_table_header *src_table,
+    struct wolfsentry_context *dest_context,
+    struct wolfsentry_table_header *dest_table,
+    wolfsentry_clone_flags_t flags);
+#endif
 #ifdef WOLFSENTRY_PROTOCOL_NAMES
 wolfsentry_errcode_t wolfsentry_addr_family_byname_table_init(
     struct wolfsentry_addr_family_byname_table *addr_family_byname_table);
+wolfsentry_errcode_t wolfsentry_addr_family_table_clone_headers(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_table_header *src_table1,
+    struct wolfsentry_table_header *src_table2,
+    struct wolfsentry_context *dest_context,
+    struct wolfsentry_table_header *dest_table1,
+    struct wolfsentry_table_header *dest_table2,
+    wolfsentry_clone_flags_t flags);
 #endif
 
 wolfsentry_errcode_t wolfsentry_table_ent_insert(struct wolfsentry_context *wolfsentry, struct wolfsentry_table_ent_header *ent, struct wolfsentry_table_header *table, int unique_p);
@@ -385,7 +432,6 @@ wolfsentry_errcode_t wolfsentry_table_clone(
     struct wolfsentry_table_header *src_table,
     struct wolfsentry_context *dest_context,
     struct wolfsentry_table_header *dest_table,
-    wolfsentry_table_ent_clone_fn_t clone_fn,
     wolfsentry_clone_flags_t flags);
 
 wolfsentry_errcode_t wolfsentry_coupled_table_clone(
@@ -395,15 +441,6 @@ wolfsentry_errcode_t wolfsentry_coupled_table_clone(
     struct wolfsentry_context *dest_context,
     struct wolfsentry_table_header *dest_table1,
     struct wolfsentry_table_header *dest_table2,
-    wolfsentry_coupled_table_ent_clone_fn_t clone_fn,
-    wolfsentry_clone_flags_t flags);
-
-wolfsentry_errcode_t wolfsentry_table_clone_map(
-    struct wolfsentry_context *wolfsentry,
-    struct wolfsentry_table_header *src_table,
-    struct wolfsentry_context *dest_context,
-    struct wolfsentry_table_header *dest_table,
-    wolfsentry_table_ent_clone_map_fn_t clone_map_fn,
     wolfsentry_clone_flags_t flags);
 
 wolfsentry_errcode_t wolfsentry_action_clone(
@@ -456,7 +493,8 @@ wolfsentry_errcode_t wolfsentry_table_map(
     struct wolfsentry_context *wolfsentry,
     struct wolfsentry_table_header *table,
     wolfsentry_map_function_t fn,
-    void *map_context);
+    void *map_context,
+    wolfsentry_action_res_t *action_results);
 
 wolfsentry_errcode_t wolfsentry_action_list_append(
     struct wolfsentry_context *wolfsentry,
@@ -501,8 +539,9 @@ wolfsentry_errcode_t wolfsentry_action_list_dispatch(
     struct wolfsentry_event *action_event,
     struct wolfsentry_event *trigger_event,
     wolfsentry_action_type_t action_type,
+    const struct wolfsentry_route *trigger_route,
     struct wolfsentry_route_table *route_table,
-    struct wolfsentry_route *route,
+    struct wolfsentry_route *rule_route,
     wolfsentry_action_res_t *action_results);
 
 wolfsentry_errcode_t wolfsentry_eventconfig_load(
@@ -570,7 +609,8 @@ wolfsentry_errcode_t wolfsentry_kv_delete(
 wolfsentry_errcode_t wolfsentry_kv_set_validator(
     struct wolfsentry_context *wolfsentry,
     struct wolfsentry_kv_table *kv_table,
-    wolfsentry_kv_validator_t validator);
+    wolfsentry_kv_validator_t validator,
+    wolfsentry_action_res_t *action_results);
 
 wolfsentry_errcode_t wolfsentry_kv_table_iterate_start(
     struct wolfsentry_context *wolfsentry,

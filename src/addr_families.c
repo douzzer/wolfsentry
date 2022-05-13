@@ -819,6 +819,24 @@ wolfsentry_errcode_t wolfsentry_addr_family_bynumber_table_init(
     WOLFSENTRY_RETURN_OK;
 }
 
+#ifndef WOLFSENTRY_PROTOCOL_NAMES
+wolfsentry_errcode_t wolfsentry_addr_family_bynumber_table_clone_header(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_table_header *src_table,
+    struct wolfsentry_context *dest_context,
+    struct wolfsentry_table_header *dest_table,
+    wolfsentry_clone_flags_t flags)
+{
+    (void)wolfsentry;
+    (void)src_table;
+    (void)dest_context;
+    (void)dest_table;
+    (void)flags;
+
+    WOLFSENTRY_RETURN_OK;
+}
+#endif /* !WOLFSENTRY_PROTOCOL_NAMES */
+
 #ifdef WOLFSENTRY_PROTOCOL_NAMES
 wolfsentry_errcode_t wolfsentry_addr_family_byname_table_init(
     struct wolfsentry_addr_family_byname_table *addr_family_byname_table)
@@ -829,4 +847,24 @@ wolfsentry_errcode_t wolfsentry_addr_family_byname_table_init(
     addr_family_byname_table->header.ent_type = WOLFSENTRY_OBJECT_TYPE_ADDR_FAMILY_BYNAME;
     WOLFSENTRY_RETURN_OK;
 }
-#endif
+
+wolfsentry_errcode_t wolfsentry_addr_family_table_clone_headers(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_table_header *src_table1,
+    struct wolfsentry_table_header *src_table2,
+    struct wolfsentry_context *dest_context,
+    struct wolfsentry_table_header *dest_table1,
+    struct wolfsentry_table_header *dest_table2,
+    wolfsentry_clone_flags_t flags)
+{
+    (void)wolfsentry;
+    (void)src_table1;
+    (void)src_table2;
+    (void)dest_context;
+    (void)dest_table1;
+    (void)dest_table2;
+    (void)flags;
+
+    WOLFSENTRY_RETURN_OK;
+}
+#endif /* WOLFSENTRY_PROTOCOL_NAMES */

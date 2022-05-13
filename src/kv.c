@@ -424,11 +424,12 @@ static wolfsentry_errcode_t apply_validator(struct apply_validator_context *cont
 wolfsentry_errcode_t wolfsentry_kv_set_validator(
     struct wolfsentry_context *wolfsentry,
     struct wolfsentry_kv_table *kv_table,
-    wolfsentry_kv_validator_t validator)
+    wolfsentry_kv_validator_t validator,
+    wolfsentry_action_res_t *action_results)
 {
     if (validator) {
         struct apply_validator_context context = { wolfsentry, validator };
-        wolfsentry_errcode_t ret = wolfsentry_table_map(wolfsentry, &kv_table->header, (wolfsentry_map_function_t)apply_validator, (void *)&context);
+        wolfsentry_errcode_t ret = wolfsentry_table_map(wolfsentry, &kv_table->header, (wolfsentry_map_function_t)apply_validator, (void *)&context, action_results);
         if (ret < 0)
             return ret;
     }
@@ -537,9 +538,10 @@ wolfsentry_errcode_t wolfsentry_kv_table_iterate_end(
 
 wolfsentry_errcode_t wolfsentry_user_value_set_validator(
     struct wolfsentry_context *wolfsentry,
-    wolfsentry_kv_validator_t validator)
+    wolfsentry_kv_validator_t validator,
+    wolfsentry_action_res_t *action_results)
 {
-    return wolfsentry_kv_set_validator(wolfsentry, wolfsentry->user_values, validator);
+    return wolfsentry_kv_set_validator(wolfsentry, wolfsentry->user_values, validator, action_results);
 }
 
 wolfsentry_errcode_t wolfsentry_user_value_get_type(
@@ -924,5 +926,26 @@ wolfsentry_errcode_t wolfsentry_kv_table_init(
     kv_table->header.cmp_fn = (wolfsentry_ent_cmp_fn_t)wolfsentry_kv_key_cmp;
     kv_table->header.free_fn = (wolfsentry_ent_free_fn_t)wolfsentry_kv_drop_reference;
     kv_table->header.ent_type = WOLFSENTRY_OBJECT_TYPE_KV;
+    WOLFSENTRY_RETURN_OK;
+}
+
+wolfsentry_errcode_t wolfsentry_kv_table_clone_header(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_table_header *src_table,
+    struct wolfsentry_context *dest_context,
+    struct wolfsentry_table_header *dest_table,
+    wolfsentry_clone_flags_t flags)
+{
+    (void)wolfsentry;
+    (void)src_table;
+    (void)dest_context;
+    (void)dest_table;
+    (void)flags;
+
+    if (src_table->ent_type != WOLFSENTRY_OBJECT_TYPE_KV)
+        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
+
+    ((struct wolfsentry_kv_table *)dest_table)->validator = ((struct wolfsentry_kv_table *)src_table)->validator;
+
     WOLFSENTRY_RETURN_OK;
 }
