@@ -103,11 +103,12 @@ static wolfsentry_errcode_t wolfsentry_kv_insert_1(
 {
     wolfsentry_errcode_t ret;
 
-    if (((ret = wolfsentry_id_generate(wolfsentry, WOLFSENTRY_OBJECT_TYPE_KV, &kv->header.id)) < 0) ||
-        ((ret = wolfsentry_table_ent_insert(wolfsentry, &kv->header, &kv_table->header, 1 /* unique_p */)) < 0))
+    if ((ret = wolfsentry_id_allocate(wolfsentry, &kv->header)) < 0)
         return ret;
-    else
-        WOLFSENTRY_RETURN_OK;
+    if ((ret = wolfsentry_table_ent_insert(wolfsentry, &kv->header, &kv_table->header, 1 /* unique_p */)) < 0)
+        wolfsentry_table_ent_delete_by_id_1(wolfsentry, &kv->header);
+
+    return ret;
 }
 
 wolfsentry_errcode_t wolfsentry_kv_insert(
@@ -403,7 +404,7 @@ wolfsentry_errcode_t wolfsentry_kv_delete(
     if ((ret = wolfsentry_kv_new(wolfsentry, key, key_len, 0 /* data_len */, &kv_template)) < 0)
         return ret;
     ret = wolfsentry_kv_get_1(kv_table, kv_template, &old);
-    (void)wolfsentry_kv_drop_reference(wolfsentry, kv_template, NULL);
+    WOLFSENTRY_WARN_ON_FAILURE(wolfsentry_kv_drop_reference(wolfsentry, kv_template, NULL));
     if (ret < 0)
         return ret;
     if ((ret = wolfsentry_table_ent_delete_1(wolfsentry, &old->header)) < 0)

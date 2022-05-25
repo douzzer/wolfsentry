@@ -96,7 +96,7 @@ ifeq "$(NO_JSON)" "1"
     CFLAGS += -DWOLFSENTRY_NO_JSON
 else
     SRCS += json/centijson_sax.c json/load_config.c
-    ifeq "$(ENABLE_JSON_DOM)" "1"
+    ifneq "$(NO_JSON_DOM)" "1"
         CFLAGS += -DWOLFSENTRY_HAVE_JSON_DOM
         SRCS += json/centijson_dom.c json/centijson_value.c
     endif

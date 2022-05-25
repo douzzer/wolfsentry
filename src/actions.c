@@ -121,13 +121,14 @@ wolfsentry_errcode_t wolfsentry_action_insert(struct wolfsentry_context *wolfsen
 
     if ((ret = wolfsentry_action_new_1(wolfsentry, label, label_len, flags, handler, handler_arg, &new)) < 0)
         return ret;
-    if ((ret = wolfsentry_id_generate(wolfsentry, WOLFSENTRY_OBJECT_TYPE_ACTION, &new->header.id)) < 0) {
+    if ((ret = wolfsentry_id_allocate(wolfsentry, &new->header)) < 0) {
         WOLFSENTRY_FREE(new); // GCOV_EXCL_LINE
         return ret; // GCOV_EXCL_LINE
     }
     if (id)
         *id = new->header.id;
     if ((ret = wolfsentry_table_ent_insert(wolfsentry, &new->header, &wolfsentry->actions->header, 1 /* unique_p */)) < 0) {
+        wolfsentry_table_ent_delete_by_id_1(wolfsentry, &new->header);
         WOLFSENTRY_FREE(new);
         WOLFSENTRY_ERROR_RERETURN(ret);
     }

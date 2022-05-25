@@ -2,8 +2,7 @@
     "wolfsentry-config-version" : 1,
     "config-update" : {
 	"max-connection-count" : 5,
-	"penalty-box-duration" : "1h",
-	"default-policy-static" : "reject"
+	"penalty-box-duration" : "1h"
     },
     "events-insert" : [
         {
@@ -39,6 +38,10 @@
 	    "label" : "call-in-from-unit-test"
 	}
     ],
+    "default-policies" : {
+	"default-policy-static" : "reject",
+	"default-event-static" : "static-route-parent"
+    },
     "static-routes-insert" : [
 	{
 	    "parent-event" : "static-route-parent",
@@ -156,7 +159,8 @@
 	    "penalty-boxed" : true,
 	    "green-listed" : false,
 	    "dont-count-hits" : false,
-	    "dont-count-current-connections" : false
+	    "dont-count-current-connections" : false,
+	    "family" : "my_AF"
 	}
 
     ],
@@ -175,7 +179,7 @@
 	"user-string2" : { "string" : "hello" },
 	"user-base64" : { "base64" : "aGVsbG8=" },
 
-	"notification-dest-addr" : "108.65.49.10",
+	"notification-dest-addr" : "192.168.3.1",
 	"notification-dest-port" : 55555
     }
 }

@@ -103,7 +103,9 @@ json_dom_process(JSON_TYPE type, const char* data, size_t data_size, void* user_
                     case JSON_DOM_DUPKEY_USEFIRST:  return 0;
                     case JSON_DOM_DUPKEY_USELAST:   value_fini(new_value); break;
                     case JSON_DOM_DUPKEY_ABORT:     /* Pass through. */
-                    default:                        return JSON_DOM_ERR_DUPKEY;
+                    default:
+                        memcpy(&dom_parser->parser.err_pos, &dom_parser->parser.value_pos, sizeof(JSON_INPUT_POS));
+                        return JSON_DOM_ERR_DUPKEY;
                 }
             }
         }
@@ -444,4 +446,20 @@ json_dom_dump(const VALUE* root, JSON_DUMP_CALLBACK write_func,
 
     ret = json_dom_dump_newline(&params);
     return ret;
+}
+
+const char* json_dom_error_str(int err_code)
+{
+    static const char unexpected_code[] = "Unexpected DOM error code";
+    static const char *const errs[] =
+    {
+        "Duplicate key" /* JSON_DOM_ERR_DUPKEY (-1000) */
+    };
+    const int array_size = sizeof errs / sizeof errs[0];
+    if (err_code > -1000)
+        return json_error_str(err_code);
+    err_code += 1000;
+    if(-array_size < err_code && err_code <= 0)
+        return errs[-err_code];
+    return unexpected_code;
 }

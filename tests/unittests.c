@@ -39,6 +39,8 @@
 #include <pthread.h>
 
 #define WOLFSENTRY_EXIT_ON_FAILURE(...) do { wolfsentry_errcode_t _retval = (__VA_ARGS__); if (_retval < 0) { WOLFSENTRY_WARN(#__VA_ARGS__ ": " WOLFSENTRY_ERROR_FMT "\n", WOLFSENTRY_ERROR_FMT_ARGS(_retval)); exit(1); }} while(0)
+#define WOLFSENTRY_EXIT_ON_SYSFAILURE(...) do { int _retval = (__VA_ARGS__); if (_retval < 0) { perror(#__VA_ARGS__); exit(1); }} while(0)
+#define WOLFSENTRY_EXIT_ON_SYSFALSE(...) do { if (! (__VA_ARGS__)) { perror(#__VA_ARGS__); exit(1); }} while(0)
 #define WOLFSENTRY_EXIT_ON_SUCCESS(...) do { if ((__VA_ARGS__) == 0) { WOLFSENTRY_WARN(#__VA_ARGS__ " should have failed, but succeeded.\n"); exit(1); }} while(0)
 #define WOLFSENTRY_EXIT_ON_FALSE(...) do { if (! (__VA_ARGS__)) { WOLFSENTRY_WARN(#__VA_ARGS__ " should have been true, but was false.\n"); exit(1); }} while(0)
 #define WOLFSENTRY_EXIT_ON_TRUE(...) do { if (__VA_ARGS__) { WOLFSENTRY_WARN(#__VA_ARGS__ " should have been false, but was true.\n"); exit(1); }} while(0)
@@ -47,6 +49,8 @@
 #else /* !WOLFSENTRY_THREADSAFE */
 
 #define WOLFSENTRY_EXIT_ON_FAILURE(...) do { wolfsentry_errcode_t _retval = (__VA_ARGS__); if (_retval < 0) { WOLFSENTRY_WARN(#__VA_ARGS__ ": " WOLFSENTRY_ERROR_FMT "\n", WOLFSENTRY_ERROR_FMT_ARGS(_retval)); return 1; }} while(0)
+#define WOLFSENTRY_EXIT_ON_SYSFAILURE(...) do { wolfsentry_errcode_t _retval = (__VA_ARGS__); if (_retval < 0) { perror(#__VA_ARGS__); exit(1); }} while(0)
+#define WOLFSENTRY_EXIT_ON_SYSFALSE(...) do { if (! (__VA_ARGS__)) { perror(#__VA_ARGS__); exit(1); }} while(0)
 #define WOLFSENTRY_EXIT_ON_SUCCESS(...) do { if ((__VA_ARGS__) == 0) { WOLFSENTRY_WARN(#__VA_ARGS__ " should have failed, but succeeded.\n"); return 1; }} while(0)
 #define WOLFSENTRY_EXIT_ON_FALSE(...) do { if (! (__VA_ARGS__)) { WOLFSENTRY_WARN(#__VA_ARGS__ " should have been true, but was false.\n"); return 1; }} while(0)
 #define WOLFSENTRY_EXIT_ON_TRUE(...) do { if (__VA_ARGS__) { WOLFSENTRY_WARN(#__VA_ARGS__ " should have been false, but was true.\n"); return 1; }} while(0)
@@ -2127,6 +2131,13 @@ static int test_user_addr_families (void) {
 #ifdef TEST_JSON
 
 #include "wolfsentry/wolfsentry_json.h"
+#ifdef WOLFSENTRY_HAVE_JSON_DOM
+#include <wolfsentry/centijson_dom.h>
+#include <wolfsentry/centijson_value.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#endif
 
 #ifdef LWIP
 #include "lwip-socket.h"
@@ -2238,6 +2249,9 @@ static wolfsentry_errcode_t json_feed_file(struct wolfsentry_context *wolfsentry
 
     if (f != stdin)
         fclose(f);
+
+    if (ret < 0)
+        fprintf(stderr,"error processing file %s\n",fname);
 
     return ret;
 }
@@ -2443,6 +2457,91 @@ static int test_json(const char *fname) {
 
         WOLFSENTRY_EXIT_ON_FALSE(WOLFSENTRY_CHECK_BITS(action_results, WOLFSENTRY_ACTION_RES_ACCEPT));
     }
+
+#ifdef WOLFSENTRY_HAVE_JSON_DOM
+    {
+        char *test_json = NULL;
+        int fd = -1;
+        VALUE p_root = {};
+        VALUE *v1 = NULL, *v2 = NULL, *v3 = NULL;
+        struct stat st;
+        static const JSON_CONFIG centijson_config = {
+            65536,  /* max_total_len */
+            1000,  /* max_total_values */
+            20,  /* max_number_len */
+            255,  /* max_string_len */
+            WOLFSENTRY_MAX_LABEL_BYTES,  /* max_key_len */
+            10,  /* max_nesting_level */
+            JSON_NOSCALARROOT   /* flags */
+        };
+        JSON_INPUT_POS json_pos;
+        const char *s;
+        size_t alen, i;
+
+        WOLFSENTRY_EXIT_ON_SYSFAILURE(fd = open(fname, O_RDONLY));
+        WOLFSENTRY_EXIT_ON_SYSFAILURE(fstat(fd, &st));
+        WOLFSENTRY_EXIT_ON_SYSFALSE((test_json = (char *)malloc((size_t)st.st_size)) != NULL);
+        WOLFSENTRY_EXIT_ON_SYSFALSE(read(fd, test_json, (size_t)st.st_size) == st.st_size);
+
+        if ((ret = json_dom_parse(test_json, (size_t)st.st_size, &centijson_config,
+                                  0 /* dom_flags */, &p_root, &json_pos)) < 0) {
+            void *p = memchr(test_json + json_pos.offset, '\n', (size_t)st.st_size - json_pos.offset);
+            int linelen = p ? ((int)((char *)p - (test_json + json_pos.offset)) + (int)json_pos.column_number - 1) :
+                ((int)((int)st.st_size - (int)json_pos.offset) + (int)json_pos.column_number - 1);
+            if (WOLFSENTRY_ERROR_DECODE_SOURCE_ID(ret) == WOLFSENTRY_SOURCE_ID_UNSET)
+                fprintf(stderr, "json_dom_parse failed at offset " SIZET_FMT ", L%u, col %u, with centijson code %d: %s\n", json_pos.offset,json_pos.line_number, json_pos.column_number, ret, json_dom_error_str(ret));
+            else
+                fprintf(stderr, "json_dom_parse failed at offset " SIZET_FMT ", L%u, col %u, with " WOLFSENTRY_ERROR_FMT "\n", json_pos.offset,json_pos.line_number, json_pos.column_number, WOLFSENTRY_ERROR_FMT_ARGS(ret));
+            fprintf(stderr,"%.*s\n", linelen, test_json + json_pos.offset - json_pos.column_number + 1);
+            exit(1);
+        }
+
+        WOLFSENTRY_EXIT_ON_TRUE((v1 = value_path(&p_root, "wolfsentry-config-version")) == NULL);
+        WOLFSENTRY_EXIT_ON_FALSE(value_uint32(v1) == 1U);
+        value_fini(v1);
+
+        WOLFSENTRY_EXIT_ON_TRUE((v1 = value_path(&p_root, "default-policies")) == NULL);
+        WOLFSENTRY_EXIT_ON_TRUE((v2 = value_path(v1, "default-policy-static")) == NULL);
+        WOLFSENTRY_EXIT_ON_TRUE((s = value_string(v2)) == NULL);
+        WOLFSENTRY_EXIT_ON_FALSE(strcmp(s, "reject") == 0);
+        value_fini(v2);
+
+        WOLFSENTRY_EXIT_ON_TRUE((v2 = value_path(v1, "default-event-static")) == NULL);
+        WOLFSENTRY_EXIT_ON_TRUE((s = value_string(v2)) == NULL);
+        WOLFSENTRY_EXIT_ON_FALSE(strcmp(s, "static-route-parent") == 0);
+        value_fini(v2);
+        v2 = NULL;
+
+        WOLFSENTRY_EXIT_ON_TRUE((v1 = value_path(&p_root, "static-routes-insert")) == NULL);
+        WOLFSENTRY_EXIT_ON_TRUE((alen = value_array_size(v1)) <= 0);
+        for (i = 0; i < alen; ++i) {
+            WOLFSENTRY_EXIT_ON_TRUE((v2 = value_array_get(v1, i)) == NULL);
+            WOLFSENTRY_EXIT_ON_TRUE((v3 = value_path(v2, "family")) == NULL);
+            WOLFSENTRY_EXIT_ON_TRUE((value_string(v3) == NULL) && (value_int32(v3) <= 0));
+            value_fini(v3);
+            v3 = NULL;
+            value_fini(v2);
+            v2 = NULL;
+        }
+        value_fini(v1);
+
+        WOLFSENTRY_EXIT_ON_TRUE((v1 = value_path(&p_root, "user-values/user-null")) == NULL);
+        WOLFSENTRY_EXIT_ON_FALSE(value_type(v1) == VALUE_NULL);
+
+        if (v3)
+            value_fini(v3);
+        if (v2)
+            value_fini(v2);
+        if (v1)
+            value_fini(v1);
+        value_fini(&p_root);
+        if (test_json != NULL)
+            free(test_json);
+        if (fd != -1)
+            (void)close(fd);
+    }
+#endif /* WOLFSENTRY_HAVE_JSON_DOM */
+
 
     return wolfsentry_shutdown(&wolfsentry);
 }

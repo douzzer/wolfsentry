@@ -74,11 +74,11 @@ typedef struct JSON_DOM_PARSER {
  *
  * The parameter `config` is propagated into json_init().
  */
-int json_dom_init(JSON_DOM_PARSER* dom_parser, const JSON_CONFIG* config, unsigned dom_flags);
+WOLFSENTRY_API int json_dom_init(JSON_DOM_PARSER* dom_parser, const JSON_CONFIG* config, unsigned dom_flags);
 
 /* Feed the parser with more input.
  */
-int json_dom_feed(JSON_DOM_PARSER* dom_parser, const char* input, size_t size);
+WOLFSENTRY_API int json_dom_feed(JSON_DOM_PARSER* dom_parser, const char* input, size_t size);
 
 /* Finish the parsing and free any resources associated with the parser.
  *
@@ -91,13 +91,13 @@ int json_dom_feed(JSON_DOM_PARSER* dom_parser, const char* input, size_t size);
  * NULL and if it is a parsing kind of error); and the value pointed by `p_dom`
  * is initialized to VALUE_NULL.
  */
-int json_dom_fini(JSON_DOM_PARSER* dom_parser, VALUE* p_dom, JSON_INPUT_POS* p_pos);
+WOLFSENTRY_API int json_dom_fini(JSON_DOM_PARSER* dom_parser, VALUE* p_dom, JSON_INPUT_POS* p_pos);
 
 
 /* Simple wrapper for json_dom_init() + json_dom_feed() + json_dom_fini(),
  * usable when the provided input contains complete JSON document.
  */
-int json_dom_parse(const char* input, size_t size, const JSON_CONFIG* config,
+WOLFSENTRY_API int json_dom_parse(const char* input, size_t size, const JSON_CONFIG* config,
                    unsigned dom_flags, VALUE* p_root, JSON_INPUT_POS* p_pos);
 
 
@@ -116,10 +116,11 @@ int json_dom_parse(const char* input, size_t size, const JSON_CONFIG* config,
 #define JSON_DOM_DUMP_INDENTWITHSPACES  0x0004  /* Indent with `tab_width` spaces instead of with '\t'. */
 #define JSON_DOM_DUMP_PREFERDICTORDER   0x0008  /* Prefer original dictionary order, if available. */
 
-int json_dom_dump(const VALUE* root,
+WOLFSENTRY_API int json_dom_dump(const VALUE* root,
                   JSON_DUMP_CALLBACK write_func, void* user_data,
                   unsigned tab_width, unsigned flags);
 
+WOLFSENTRY_API const char* json_dom_error_str(int err_code);
 
 #ifdef __cplusplus
 }  /* extern "C" { */

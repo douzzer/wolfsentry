@@ -812,11 +812,11 @@ json_handle_new_line(JSON_PARSER* parser, char ch)
     if(ch == '\r') {
         parser->last_cl_offset = parser->pos.offset;
         parser->pos.line_number++;
-        parser->pos.column_number = FIRST_COLUMN_NUMBER;
+        parser->pos.column_number = FIRST_COLUMN_NUMBER - 1;
     } else if(ch == '\n') {
         if(!(parser->pos.offset == parser->last_cl_offset + 1))
             parser->pos.line_number++;
-        parser->pos.column_number = FIRST_COLUMN_NUMBER;
+        parser->pos.column_number = FIRST_COLUMN_NUMBER - 1;
     }
 }
 

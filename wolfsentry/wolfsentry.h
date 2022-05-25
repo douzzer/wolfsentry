@@ -149,6 +149,7 @@ typedef uint16_t wolfsentry_port_t;
 typedef WOLFSENTRY_ENT_ID_TYPE wolfsentry_ent_id_t;
 #else
 typedef uint32_t wolfsentry_ent_id_t;
+#define WOLFSENTRY_ENT_ID_FMT "%u"
 #endif
 #define WOLFSENTRY_ENT_ID_NONE 0
 typedef uint16_t wolfsentry_addr_bits_t;
@@ -156,6 +157,7 @@ typedef uint16_t wolfsentry_addr_bits_t;
 typedef WOLFSENTRY_HITCOUNT_TYPE wolfsentry_hitcount_t;
 #else
 typedef uint32_t wolfsentry_hitcount_t;
+#define WOLFSENTRY_HITCOUNT_FMT "%u"
 #endif
 #ifdef WOLFSENTRY_TIME_TYPE
 typedef WOLFSENTRY_TIME_TYPE wolfsentry_time_t;
@@ -324,6 +326,7 @@ typedef enum {
     WOLFSENTRY_ACTION_RES_DELETE      = 1U << 9U, /* when an action returns this, delete the route from the table. */
     WOLFSENTRY_ACTION_RES_DEALLOCATED = 1U << 10U, /* when an API call returns this, the route and its associated ID were deallocated from the system. */
     WOLFSENTRY_ACTION_RES_ERROR       = 1U << 11U,
+    WOLFSENTRY_ACTION_RES_FALLTHROUGH = 1U << 12U, /* dispatch resolved to the fallthrough route. */
     WOLFSENTRY_ACTION_RES_USER_BASE   = 1U << WOLFSENTRY_ACTION_RES_USER_SHIFT /* start of user-defined results, with user-defined scheme (bitfield, sequential, or other) */
 } wolfsentry_action_res_t;
 
@@ -396,14 +399,15 @@ struct wolfsentry_route_endpoint {
     byte interface;
 };
 
-struct wolfsentry_route_metadata {
+struct wolfsentry_route_metadata_exports {
     wolfsentry_time_t insert_time;
     wolfsentry_time_t last_hit_time;
     wolfsentry_time_t last_penaltybox_time;
     uint16_t connection_count;
     uint16_t derogatory_count;
-    uint16_t commendable_count;}
-;
+    uint16_t commendable_count;
+    wolfsentry_hitcount_t hit_count;
+};
 
 struct wolfsentry_route_exports {
     const char *parent_event_label;
@@ -414,7 +418,7 @@ struct wolfsentry_route_exports {
     struct wolfsentry_route_endpoint remote, local;
     const byte *remote_address, *local_address;
     const wolfsentry_port_t *remote_extra_ports, *local_extra_ports;
-    struct wolfsentry_route_metadata meta;
+    struct wolfsentry_route_metadata_exports meta;
     void *private_data;
     size_t private_data_size;
 };
@@ -488,7 +492,7 @@ typedef void *(*wolfsentry_realloc_cb_t)(void *context, void *ptr, size_t size);
 typedef void *(*wolfsentry_memalign_cb_t)(void *context, size_t alignment, size_t size);
 typedef void (*wolfsentry_free_aligned_cb_t)(void *context, void *ptr);
 
-typedef wolfsentry_errcode_t (*wolfsentry_make_id_cb_t)(void *context, wolfsentry_object_type_t object_type, wolfsentry_ent_id_t *id);
+typedef wolfsentry_errcode_t (*wolfsentry_make_id_cb_t)(void *context, wolfsentry_ent_id_t *id);
 
 struct wolfsentry_allocator {
     void *context;
@@ -947,8 +951,8 @@ WOLFSENTRY_API wolfsentry_errcode_t wolfsentry_route_get_flags(
     wolfsentry_route_flags_t *flags);
 
 WOLFSENTRY_API wolfsentry_errcode_t wolfsentry_route_get_metadata(
-    struct wolfsentry_route *route,
-    struct wolfsentry_route_metadata *metadata);
+    const struct wolfsentry_route *route,
+    struct wolfsentry_route_metadata_exports *metadata);
 
 WOLFSENTRY_API wolfsentry_errcode_t wolfsentry_route_update_flags(
     struct wolfsentry_context *wolfsentry,

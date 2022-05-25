@@ -242,7 +242,14 @@ struct wolfsentry_route {
     uint16_t data_addr_offset; /* 0 if there's no private_data */
     uint16_t data_addr_size;
 
-    struct wolfsentry_route_metadata meta;
+    struct {
+        wolfsentry_time_t insert_time;
+        wolfsentry_time_t last_hit_time;
+        wolfsentry_time_t last_penaltybox_time;
+        uint16_t connection_count;
+        uint16_t derogatory_count;
+        uint16_t commendable_count;
+    } meta;
 
     uint16_t data[WOLFSENTRY_FLEXIBLE_ARRAY_SIZE]; /* first the caller's private data area (if any),
                    * then the remote addr in big endian padded up to
@@ -266,7 +273,7 @@ struct wolfsentry_route {
 
 struct wolfsentry_route_table {
     struct wolfsentry_table_header header;
-    struct wolfsentry_event *default_event; /* used as the event by wolfsentry_route_dispatch() for a static route match with a null parent_event. */
+    struct wolfsentry_event *default_event; /* used as the parent_event by wolfsentry_route_dispatch() for a static route match with a null parent_event. */
     struct wolfsentry_route *fallthrough_route; /* used as the rule_route when no rule_route is matched or inserted. */
     wolfsentry_time_t purge_age; /* when now - last_transition_time >= purge_age, purge from the route table. */
     wolfsentry_action_res_t default_policy;
@@ -352,7 +359,7 @@ struct wolfsentry_context {
 #define WOLFSENTRY_INTERVAL_TO_SECONDS(howlong, howlong_secs, howlong_nsecs) wolfsentry->timecbs.interval_to_seconds(howlong, howlong_secs, howlong_nsecs)
 #define WOLFSENTRY_INTERVAL_FROM_SECONDS(howlong_secs, howlong_nsecs, howlong) wolfsentry->timecbs.interval_from_seconds(howlong_secs, howlong_nsecs, howlong)
 
-wolfsentry_errcode_t wolfsentry_id_generate(struct wolfsentry_context *wolfsentry, wolfsentry_object_type_t object_type, wolfsentry_ent_id_t *id);
+wolfsentry_errcode_t wolfsentry_id_allocate(struct wolfsentry_context *wolfsentry, struct wolfsentry_table_ent_header *ent);
 
 int wolfsentry_event_key_cmp(struct wolfsentry_event *left, struct wolfsentry_event *right);
 wolfsentry_errcode_t wolfsentry_event_table_init(

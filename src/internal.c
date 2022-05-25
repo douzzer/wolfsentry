@@ -28,11 +28,8 @@ wolfsentry_errcode_t wolfsentry_table_ent_insert(struct wolfsentry_context *wolf
     struct wolfsentry_table_ent_header *i = table->head;
     int cmpret;
 
-    if (ent->id != WOLFSENTRY_ENT_ID_NONE) {
-        wolfsentry_errcode_t ret = wolfsentry_table_ent_insert_by_id(wolfsentry, ent);
-        if (ret < 0)
-            return ret;
-    }
+    if (ent->id == WOLFSENTRY_ENT_ID_NONE)
+        WOLFSENTRY_ERROR_RETURN(INVALID_ARG);
 
     while (i) {
         if ((cmpret = table->cmp_fn(i, ent)) >= 0)
@@ -255,9 +252,10 @@ wolfsentry_errcode_t wolfsentry_coupled_table_clone(
         prev = new1;
         if ((ret = wolfsentry_table_ent_insert_by_id(dest_context, new1)) < 0)
             goto out;
+        if ((ret = wolfsentry_table_ent_insert_by_id(dest_context, new2)) < 0)
+            goto out;
         if ((ret = wolfsentry_table_ent_insert(dest_context, new2, dest_table2, 1 /* unique_p */)) < 0)
             goto out;
-        /* note wolfsentry_table_ent_insert() takes care of the _insert_by_id(). */
     }
     dest_table1->tail = new1;
 
@@ -281,6 +279,31 @@ static inline int wolfsentry_ent_id_cmp(struct wolfsentry_table_ent_header *left
         return 1;
     else
         return 0;
+}
+
+wolfsentry_errcode_t wolfsentry_id_allocate(
+    struct wolfsentry_context *wolfsentry,
+    struct wolfsentry_table_ent_header *ent)
+{
+    wolfsentry_errcode_t ret;
+    for (;;) {
+        if (wolfsentry->mk_id_cb) {
+            ret = wolfsentry->mk_id_cb(wolfsentry->mk_id_cb_state.mk_id_cb_arg, &ent->id);
+            if (ret < 0)
+                return ret;
+        } else {
+            ent->id = ++wolfsentry->mk_id_cb_state.id_counter;
+        }
+
+        ret = wolfsentry_table_ent_insert_by_id(wolfsentry, ent);
+        if (! WOLFSENTRY_ERROR_CODE_IS(ret, ITEM_ALREADY_PRESENT))
+            return ret;
+    }
+    /* not reached */
+}
+
+wolfsentry_ent_id_t wolfsentry_get_object_id(const void *object) {
+    return ((const struct wolfsentry_table_ent_header *)object)->id;
 }
 
 wolfsentry_errcode_t wolfsentry_table_ent_insert_by_id(struct wolfsentry_context *wolfsentry, struct wolfsentry_table_ent_header *ent) {

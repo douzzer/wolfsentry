@@ -33,6 +33,12 @@ extern "C" {
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifdef WOLFSENTRY
+#include "wolfsentry.h"
+#endif
+#ifndef WOLFSENTRY_API
+#define WOLFSENTRY_API
+#endif
 
 /* The value structure.
  * Use as opaque.
@@ -69,11 +75,11 @@ typedef enum VALUE_TYPE {
 /* Free any resources the value holds.
  * For ARRAY and DICT it is recursive.
  */
-void value_fini(VALUE* v);
+WOLFSENTRY_API void value_fini(VALUE* v);
 
 /* Get value type.
  */
-VALUE_TYPE value_type(const VALUE* v);
+WOLFSENTRY_API VALUE_TYPE value_type(const VALUE* v);
 
 /* Check whether the value is "compatible" with the given type.
  *
@@ -86,7 +92,7 @@ VALUE_TYPE value_type(const VALUE* v);
  * INT32_MIN and INT32_MAX. Therefore calling int32_value(&v) gets sensible
  * result.
  */
-int value_is_compatible(const VALUE* v, VALUE_TYPE type);
+WOLFSENTRY_API int value_is_compatible(const VALUE* v, VALUE_TYPE type);
 
 /* Values newly added into array or dictionary are of type VALUE_NULL.
  *
@@ -100,7 +106,7 @@ int value_is_compatible(const VALUE* v, VALUE_TYPE type);
  * Caller is supposed to initialize all such newly added value with any of the
  * value_init_XXX() functions, and hence reset the flag.
  */
-int value_is_new(const VALUE* v);
+WOLFSENTRY_API int value_is_new(const VALUE* v);
 
 /* Simple recursive getter, capable to get a value dwelling deep in the
  * hierarchy formed by nested arrays and dictionaries.
@@ -136,7 +142,7 @@ int value_is_new(const VALUE* v);
  *       -- and finally, that is a list having the index [3].
  *      If any of those is not fulfilled, then NULL is returned.
  */
-VALUE* value_path(VALUE* root, const char* path);
+WOLFSENTRY_API VALUE* value_path(VALUE* root, const char* path);
 
 /* value_build_path() is similar to value_path(); but allows easy populating
  * of value hierarchies.
@@ -169,7 +175,7 @@ VALUE* value_path(VALUE* root, const char* path);
  * has a type incompatible with the path; if creation of any value along the
  * path fails; or if an array index is out of bounds.
  */
-VALUE* value_build_path(VALUE* root, const char* path);
+WOLFSENTRY_API VALUE* value_build_path(VALUE* root, const char* path);
 
 
 /******************
@@ -187,16 +193,16 @@ VALUE* value_build_path(VALUE* root, const char* path);
  */
 #define VALUE_NULL_INITIALIZER    { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } }
 
-void value_init_null(VALUE* v);
+WOLFSENTRY_API void value_init_null(VALUE* v);
 
 
 /******************
  *** VALUE_BOOL ***
  ******************/
 
-int value_init_bool(VALUE* v, int b);
+WOLFSENTRY_API int value_init_bool(VALUE* v, int b);
 
-int value_bool(const VALUE* v);
+WOLFSENTRY_API int value_bool(const VALUE* v);
 
 
 /*********************
@@ -206,12 +212,12 @@ int value_bool(const VALUE* v);
 
 /* Initializers.
  */
-int value_init_int32(VALUE* v, int32_t i32);
-int value_init_uint32(VALUE* v, uint32_t u32);
-int value_init_int64(VALUE* v, int64_t i64);
-int value_init_uint64(VALUE* v, uint64_t u64);
-int value_init_float(VALUE* v, float f);
-int value_init_double(VALUE* v, double d);
+WOLFSENTRY_API int value_init_int32(VALUE* v, int32_t i32);
+WOLFSENTRY_API int value_init_uint32(VALUE* v, uint32_t u32);
+WOLFSENTRY_API int value_init_int64(VALUE* v, int64_t i64);
+WOLFSENTRY_API int value_init_uint64(VALUE* v, uint64_t u64);
+WOLFSENTRY_API int value_init_float(VALUE* v, float f);
+WOLFSENTRY_API int value_init_double(VALUE* v, double d);
 
 /* Getters.
  *
@@ -222,12 +228,12 @@ int value_init_double(VALUE* v, double d);
  * However application may use value_is_compatible() to verify whether the
  * conversion should provide a reasonable result.
  */
-int32_t value_int32(const VALUE* v);
-uint32_t value_uint32(const VALUE* v);
-int64_t value_int64(const VALUE* v);
-uint64_t value_uint64(const VALUE* v);
-float value_float(const VALUE* v);
-double value_double(const VALUE* v);
+WOLFSENTRY_API int32_t value_int32(const VALUE* v);
+WOLFSENTRY_API uint32_t value_uint32(const VALUE* v);
+WOLFSENTRY_API int64_t value_int64(const VALUE* v);
+WOLFSENTRY_API uint64_t value_uint64(const VALUE* v);
+WOLFSENTRY_API float value_float(const VALUE* v);
+WOLFSENTRY_API double value_double(const VALUE* v);
 
 
 /********************
@@ -250,17 +256,17 @@ double value_double(const VALUE* v);
  * The parameter str is allowed to be NULL (then the functions behave the same
  * way as if it is points to an empty string).
  */
-int value_init_string_(VALUE* v, const char* str, size_t len);
-int value_init_string(VALUE* v, const char* str);
+WOLFSENTRY_API int value_init_string_(VALUE* v, const char* str, size_t len);
+WOLFSENTRY_API int value_init_string(VALUE* v, const char* str);
 
 /* Get pointer to the internal buffer holding the string. The caller may assume
  * the returned string is always zero-terminated.
  */
-const char* value_string(const VALUE* v);
+WOLFSENTRY_API const char* value_string(const VALUE* v);
 
 /* Get length of the string. (The implicit zero terminator does not count.)
  */
-size_t value_string_length(const VALUE* v);
+WOLFSENTRY_API size_t value_string_length(const VALUE* v);
 
 
 /*******************
@@ -281,33 +287,33 @@ size_t value_string_length(const VALUE* v);
  * That includes the return values of value_array_get(), value_array_get_all(),
  * but also preceding calls of value_array_append() and value_array_insert().
  */
-int value_init_array(VALUE* v);
+WOLFSENTRY_API int value_init_array(VALUE* v);
 
 /* Get count of items in the array.
  */
-size_t value_array_size(const VALUE* v);
+WOLFSENTRY_API size_t value_array_size(const VALUE* v);
 
 /* Get the specified item.
  */
-VALUE* value_array_get(const VALUE* v, size_t index);
+WOLFSENTRY_API VALUE* value_array_get(const VALUE* v, size_t index);
 
 /* Get pointer to internal C array of all items.
  */
-VALUE* value_array_get_all(const VALUE* v);
+WOLFSENTRY_API VALUE* value_array_get_all(const VALUE* v);
 
 /* Append/insert new item.
  */
-VALUE* value_array_append(VALUE* v);
-VALUE* value_array_insert(VALUE* v, size_t index);
+WOLFSENTRY_API VALUE* value_array_append(VALUE* v);
+WOLFSENTRY_API VALUE* value_array_insert(VALUE* v, size_t index);
 
 /* Remove an item (or range of items).
  */
-int value_array_remove(VALUE* v, size_t index);
-int value_array_remove_range(VALUE* v, size_t index, size_t count);
+WOLFSENTRY_API int value_array_remove(VALUE* v, size_t index);
+WOLFSENTRY_API int value_array_remove_range(VALUE* v, size_t index, size_t count);
 
 /* Remove and destroy all members (recursively).
  */
-void value_array_clean(VALUE* v);
+WOLFSENTRY_API void value_array_clean(VALUE* v);
 
 
 /******************
@@ -339,19 +345,19 @@ void value_array_clean(VALUE* v);
  * value_init_dict_ex() allows to specify custom comparer function (may be NULL)
  * or flags changing the default behavior of the dictionary.
  */
-int value_init_dict(VALUE* v);
-int value_init_dict_ex(VALUE* v,
+WOLFSENTRY_API int value_init_dict(VALUE* v);
+WOLFSENTRY_API int value_init_dict_ex(VALUE* v,
                        int (*custom_cmp_func)(const char* /*key1*/, size_t /*len1*/,
                                               const char* /*key2*/, size_t /*len2*/),
                        unsigned flags);
 
 /* Get flags of the dictionary.
  */
-unsigned value_dict_flags(const VALUE* v);
+WOLFSENTRY_API unsigned value_dict_flags(const VALUE* v);
 
 /* Get count of items in the dictionary.
  */
-size_t value_dict_size(const VALUE* v);
+WOLFSENTRY_API size_t value_dict_size(const VALUE* v);
 
 /* Get all keys.
  *
@@ -360,20 +366,20 @@ size_t value_dict_size(const VALUE* v);
  *
  * Returns count of retrieved keys.
  */
-size_t value_dict_keys_sorted(const VALUE* v, const VALUE** buffer, size_t buffer_size);
-size_t value_dict_keys_ordered(const VALUE* v, const VALUE** buffer, size_t buffer_size);
+WOLFSENTRY_API size_t value_dict_keys_sorted(const VALUE* v, const VALUE** buffer, size_t buffer_size);
+WOLFSENTRY_API size_t value_dict_keys_ordered(const VALUE* v, const VALUE** buffer, size_t buffer_size);
 
 /* Find an item with the given key, or return NULL of no such item exists.
  */
-VALUE* value_dict_get_(const VALUE* v, const char* key, size_t key_len);
-VALUE* value_dict_get(const VALUE* v, const char* key);
+WOLFSENTRY_API VALUE* value_dict_get_(const VALUE* v, const char* key, size_t key_len);
+WOLFSENTRY_API VALUE* value_dict_get(const VALUE* v, const char* key);
 
 /* Add new item with the given key of type VALUE_NULL.
  *
  * Returns NULL if the key is already used.
  */
-VALUE* value_dict_add_(VALUE* v, const char* key, size_t key_len);
-VALUE* value_dict_add(VALUE* v, const char* key);
+WOLFSENTRY_API VALUE* value_dict_add_(VALUE* v, const char* key, size_t key_len);
+WOLFSENTRY_API VALUE* value_dict_add(VALUE* v, const char* key);
 
 /* This is combined operation of value_dict_get() and value_dict_add().
  *
@@ -382,13 +388,13 @@ VALUE* value_dict_add(VALUE* v, const char* key);
  *
  * NULL is returned only in an out-of-memory situation.
  */
-VALUE* value_dict_get_or_add_(VALUE* v, const char* key, size_t key_len);
-VALUE* value_dict_get_or_add(VALUE* v, const char* key);
+WOLFSENTRY_API VALUE* value_dict_get_or_add_(VALUE* v, const char* key, size_t key_len);
+WOLFSENTRY_API VALUE* value_dict_get_or_add(VALUE* v, const char* key);
 
 /* Remove and destroy (recursively) the given item from the dictionary.
  */
-int value_dict_remove_(VALUE* v, const char* key, size_t key_len);
-int value_dict_remove(VALUE* v, const char* key);
+WOLFSENTRY_API int value_dict_remove_(VALUE* v, const char* key, size_t key_len);
+WOLFSENTRY_API int value_dict_remove(VALUE* v, const char* key);
 
 /* Walking over all items in the dictionary. The callback function is called
  * for every item in the dictionary, providing key and value and propagating
@@ -398,14 +404,14 @@ int value_dict_remove(VALUE* v, const char* key);
  * Note dict_walk_ordered() is supported only if DICT_MAINTAINORDER
  * flag was used in init_dict().
  */
-int value_dict_walk_ordered(const VALUE* v,
+WOLFSENTRY_API int value_dict_walk_ordered(const VALUE* v,
             int (*visit_func)(const VALUE*, VALUE*, void*), void* ctx);
-int value_dict_walk_sorted(const VALUE* v,
+WOLFSENTRY_API int value_dict_walk_sorted(const VALUE* v,
             int (*visit_func)(const VALUE*, VALUE*, void*), void* ctx);
 
 /* Remove and destroy all members (recursively).
  */
-void value_dict_clean(VALUE* v);
+WOLFSENTRY_API void value_dict_clean(VALUE* v);
 
 
 #ifdef __cplusplus
